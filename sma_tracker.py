@@ -11,6 +11,14 @@ if not ticker_symbol:
 print(f"\nFetching institutional market data for {ticker_symbol}...")
 
 try:
+    # --- NEW: Fetch Official Corporate Company Name Metadata ---
+    try:
+        ticker_metadata = yf.Ticker(ticker_symbol)
+        company_name = ticker_metadata.info.get("longName", ticker_symbol)
+    except Exception:
+        # Fallback to ticker symbol if API metadata experiences a temporary network lag
+        company_name = ticker_symbol
+
     # 2. Extract 2 years of history
     data = yf.download(ticker_symbol, period="2y")
     
@@ -60,8 +68,9 @@ try:
     for col in columns_to_keep:
         print_df[col] = print_df[col].map(lambda x: f"${x:,.2f}" if pd.notnull(x) else "$0.00")
 
+    # 6. Print formatted metrics table (Now dynamically including the full Company Name)
     print("\n========================================================")
-    print(f" EXPERT TECHNICAL MONITOR FOR: {ticker_symbol}")
+    print(f" EXPERT TECHNICAL MONITOR FOR: {company_name} ({ticker_symbol})")
     print("========================================================")
     print(print_df.to_string(index=False))
     print("========================================================")
@@ -140,7 +149,6 @@ try:
     print(" ALGORITHMIC TRADING SIGNAL VERDICT:")
     print("--------------------------------------------------------")
     
-    # Determine Signal Label based on Net Score Matrix
     if signal_score >= 3:
         if is_overextended:
             print(f" >>> SIGNAL: HOLD (Score: {signal_score}) <<<\n [Reasoning] Strong uptrend, but the stock is too overextended above its 200 SMA to safely buy here.")
@@ -156,7 +164,7 @@ try:
     elif -3 <= signal_score <= -2:
         print(f" >>> SIGNAL: SELL / LIGHTEN (Score: {signal_score}) <<<\n [Reasoning] Market is breaking down into a short-to-medium-term defensive configuration.")
         
-    else: # Score is -4 or lower
+    else: 
         print(f" >>> SIGNAL: STRONG SELL (Score: {signal_score}) <<<\n [Reasoning] Full systemic macro breakdown. Active death cross paired with heavy distribution selling.")
         
     print("========================================================\n")
