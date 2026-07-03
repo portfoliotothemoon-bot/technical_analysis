@@ -77,7 +77,8 @@ try:
     # Trigger volume verification alerts on major moving average tests
     volume_surge = current_volume > (avg_volume * 1.5)
     
-    if current_close > sma50 and latest_3_days["Close"].iloc[0] < latest_3_days["50_SMA"].iloc[0]:
+    # Check if the price crossed above the 50 SMA specifically during the most recent session
+    if current_close > sma50 and latest_3_days["Close"].iloc[-2] < latest_3_days["50_SMA"].iloc[-2]:
         if volume_surge:
             print(" [^] VALID BULLISH BREAKOUT: Passed above 50 SMA supported by heavy institutional volume.")
         else:
@@ -92,11 +93,14 @@ try:
     elif ma_spread > 0.25:
         print(" [!] OVEREXTENDED WARNING: Moving averages are fanned out wide (>25%). Trend is mature; expect mean reversion.")
 
-    # Core Macro Cross Baseline Status
+    # --- ENHANCEMENT 4: Macro Cross Baseline Status with Price Context ---
     if sma50 > sma200:
         print(" [^] MACRO FRAMEWORK: GOLDEN CROSS Active (Long-term structural bull cycle).")
     else:
         print(" [!] MACRO FRAMEWORK: DEATH CROSS Active (Long-term structural bear market).")
+        # Sub-alert verifying if price has broken out above macro structural resistance
+        if current_close > sma200:
+            print("     -> NOTE: Price has reclaimed the 200 SMA! Watch for a Bear Market Rally or an early Trend Reversal.")
         
     print("========================================================\n")
 
