@@ -11,12 +11,11 @@ if not ticker_symbol:
 print(f"\nFetching institutional market data for {ticker_symbol}...")
 
 try:
-    # --- NEW: Fetch Official Corporate Company Name Metadata ---
+    # Fetch Official Corporate Company Name Metadata
     try:
         ticker_metadata = yf.Ticker(ticker_symbol)
         company_name = ticker_metadata.info.get("longName", ticker_symbol)
     except Exception:
-        # Fallback to ticker symbol if API metadata experiences a temporary network lag
         company_name = ticker_symbol
 
     # 2. Extract 2 years of history
@@ -30,6 +29,7 @@ try:
     data.columns = data.columns.get_level_values(0)
 
     # 3. CORE TECHNICAL ENGINE CALCULATIONS
+    # Moving Averages
     data["20_SMA"] = data["Close"].rolling(window=20).mean()
     data["50_SMA"] = data["Close"].rolling(window=50).mean()
     data["100_SMA"] = data["Close"].rolling(window=100).mean()
@@ -44,6 +44,18 @@ try:
     data["Upper_Band"] = data["20_SMA"] + (data["20_StdDev"] * 2)
     data["Lower_Band"] = data["20_SMA"] - (data["20_StdDev"] * 2)
     data["Bandwidth"] = (data["Upper_Band"] - data["Lower_Band"]) / data["20_SMA"]
+
+    # --- NEW: Institutional 14-Period RSI Calculation ---
+    delta = data["Close"].diff()
+    gain = (delta.where(delta > 0, 0)).copy()
+    loss = (-delta.where(delta < 0, 0)).copy()
+
+    # Wilder's Exponential Moving Average for RSI
+    avg_gain = gain.ewm(com=13, adjust=False).mean()
+    avg_loss = loss.ewm(com=13, adjust=False).mean()
+
+    rs = avg_gain / avg_loss
+    data["RSI"] = 100 - (100 / (1 + rs))
 
     # 4. ISOLATE TIME INTERVAL MATRICES
     latest_3_days = data.tail(3)
@@ -61,6 +73,7 @@ try:
     sma100 = float(latest_row["100_SMA"].iloc[0])
     sma200 = float(latest_row["200_SMA"].iloc[0])
     bandwidth = float(latest_row["Bandwidth"].iloc[0])
+    rsi_val = float(latest_row["RSI"].iloc[0])
 
     # 5. FORMAT AND GENERATE TECHNICAL DASHBOARD
     columns_to_keep = ["Close", "20_SMA", "50_SMA", "100_SMA", "200_SMA"]
@@ -68,18 +81,21 @@ try:
     for col in columns_to_keep:
         print_df[col] = print_df[col].map(lambda x: f"${x:,.2f}" if pd.notnull(x) else "$0.00")
 
-    # 6. Print formatted metrics table (Now dynamically including the full Company Name)
-    print("\n========================================================")
+    # Add RSI as its own cleanly formatted string column to the display grid
+    print_df["14_RSI"] = f"{rsi_val:.2f}"
+
+    # 6. Print formatted metrics table
+    print("\n==================================================================")
     print(f" EXPERT TECHNICAL MONITOR FOR: {company_name} ({ticker_symbol})")
-    print("========================================================")
+    print("==================================================================")
     print(print_df.to_string(index=False))
-    print("========================================================")
+    print("==================================================================")
     print(f" Daily Volume : {current_volume:,.0f}")
     print(f" 1-Month Avg  : {avg_volume_1m:,.0f} (20-day window)")
     print(f" 3-Month Avg  : {avg_volume_3m:,.0f} (63-day window)")
-    print("--------------------------------------------------------")
+    print("------------------------------------------------------------------")
     print(f" QUANTITATIVE MARKET INSIGHT ALERTS:")
-    print("--------------------------------------------------------")
+    print("------------------------------------------------------------------")
     
     # Initialize Scoring Matrix
     signal_score = 0
@@ -144,14 +160,24 @@ try:
         print(" [^] CONFIRMED SHORT-TERM UPTREND: Price closed ABOVE 20 SMA for 3 consecutive days.")
         signal_score += 1
 
+    # --- NEW INSIGHT 7: RSI Momentum Overbought / Oversold Filter ---
+    if rsi_val >= 70:
+        print(f" [!] MOMENTUM CRITICAL: 14-Day RSI is at {rsi_val:.2f} -> Stock is OVERBOUGHT. High reversal risk.")
+        signal_score -= 1
+    elif rsi_val <= 30:
+        print(f" [^] MOMENTUM OPPORUTNITY: 14-Day RSI is at {rsi_val:.2f} -> Stock is OVERSOLD. High bounce probability.")
+        signal_score += 1
+    else:
+        print(f" [-] MOMENTUM STABLE: 14-Day RSI is sitting comfortably at {rsi_val:.2f} (Neutral zone).")
+
     # --- 8. ALGORITHMIC SIGNAL VERDICT MATRIX ---
-    print("--------------------------------------------------------")
+    print("------------------------------------------------------------------")
     print(" ALGORITHMIC TRADING SIGNAL VERDICT:")
-    print("--------------------------------------------------------")
+    print("------------------------------------------------------------------")
     
     if signal_score >= 3:
-        if is_overextended:
-            print(f" >>> SIGNAL: HOLD (Score: {signal_score}) <<<\n [Reasoning] Strong uptrend, but the stock is too overextended above its 200 SMA to safely buy here.")
+        if is_overextended or rsi_val >= 70:
+            print(f" >>> SIGNAL: HOLD (Score: {signal_score}) <<<\n [Reasoning] Strong uptrend metrics, but overextended moving average zones or overbought RSI levels make chasing risky.")
         else:
             print(f" >>> SIGNAL: STRONG BUY (Score: {signal_score}) <<<\n [Reasoning] Indicators are aligned into an aggressive bullish expansion profile with volume support.")
             
@@ -167,7 +193,7 @@ try:
     else: 
         print(f" >>> SIGNAL: STRONG SELL (Score: {signal_score}) <<<\n [Reasoning] Full systemic macro breakdown. Active death cross paired with heavy distribution selling.")
         
-    print("========================================================\n")
+    print("==================================================================\n")
 
 except Exception as e:
     print(f"\n[An unexpected error occurred]: {e}")
