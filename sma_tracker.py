@@ -2,17 +2,18 @@ import pandas as pd
 import yfinance as yf
 import sys
 
+# Import Treasury Monitor
+from fred_treasury_spread import get_treasury_yield_spread
+
 print("==================================================================================================================")
-print(" QUANTITATIVE TRADING RADAR TERMINAL ENGINE INITIALIZED")
+print(" QUANTITATIVE TRADING RADAR TERMINAL ENGINE v2.0")
 print(" -> Type 'EXIT' at the ticker prompt to close the application safely.")
 print("==================================================================================================================")
 
 def main():
     while True:
-        # 1. Interactive Terminal Input Prompt
         ticker_symbol = input("\nEnter a stock ticker symbol (or type EXIT): ").strip().upper()
 
-        # Graceful exit handle clause
         if ticker_symbol == "EXIT":
             print("\nClosing terminal connection safely... Good luck trading!\n")
             break
@@ -21,15 +22,19 @@ def main():
             print("[Error] Ticker symbol cannot be blank!")
             continue
 
-        print(f"Fetching institutional market data for {ticker_symbol}...")
+        print(f"\nFetching institutional market data for {ticker_symbol}...")
 
         try:
-            # Fetch Official Corporate Company Name Metadata
+            # Fetch Company Name
             try:
                 ticker_metadata = yf.Ticker(ticker_symbol)
                 company_name = ticker_metadata.info.get("longName", ticker_symbol)
             except Exception:
                 company_name = ticker_symbol
+
+            # === MACRO CONTEXT: TREASURY YIELDS ===
+            print("\nFetching Macro Context (Treasury Yields)...")
+            get_treasury_yield_spread()
 
             # 2. Extract 2 years of history
             data = yf.download(ticker_symbol, period="2y", progress=False)
@@ -41,18 +46,16 @@ def main():
             if len(data) < 200:
                 print(f"[Warning] Limited historical data ({len(data)} days). Some indicators may be unreliable.")
 
-            # Flatten modern multi-level columns
+            # Flatten columns if needed
             if isinstance(data.columns, pd.MultiIndex):
                 data.columns = data.columns.get_level_values(0)
 
-            # 3. CORE TECHNICAL ENGINE CALCULATIONS
-            # Moving Averages
+            # === CORE TECHNICAL CALCULATIONS ===
             data["20_SMA"] = data["Close"].rolling(window=20).mean()
             data["50_SMA"] = data["Close"].rolling(window=50).mean()
             data["100_SMA"] = data["Close"].rolling(window=100).mean()
             data["200_SMA"] = data["Close"].rolling(window=200).mean()
             
-            # Volume Averages
             data["Volume_10_MA"] = data["Volume"].rolling(window=10).mean()
             data["Volume_20_MA"] = data["Volume"].rolling(window=20).mean()
             data["Volume_63_MA"] = data["Volume"].rolling(window=63).mean()
@@ -64,7 +67,7 @@ def main():
             data["Lower_Band"] = data["20_SMA"] - (data["20_StdDev"] * 2)
             data["Bandwidth"] = (data["Upper_Band"] - data["Lower_Band"]) / data["20_SMA"]
 
-            # 14-Period RSI
+            # RSI
             delta = data["Close"].diff()
             gain = delta.where(delta > 0, 0).copy()
             loss = (-delta.where(delta < 0, 0)).copy()
@@ -73,17 +76,15 @@ def main():
             rs = avg_gain / avg_loss.replace(0, float('nan'))
             data["RSI"] = 100 - (100 / (1 + rs))
 
-            # Ensure enough clean data for indicators
             data = data.dropna(subset=['20_SMA', '200_SMA', 'RSI', 'Upper_Band'])
             if data.empty:
                 print(f"[Error] Insufficient data after calculations for '{ticker_symbol}'.")
                 continue
 
-            # 4. ISOLATE LATEST DATA
+            # Latest Data
             latest_3_days = data.tail(3)
             latest_row = data.tail(1)
             
-            # Safe numerical extraction
             current_close = float(latest_row["Close"].iloc[0])
             current_open = float(latest_row["Open"].iloc[0])
             current_volume = float(latest_row["Volume"].iloc[0])
@@ -102,15 +103,23 @@ def main():
             bandwidth = float(latest_row["Bandwidth"].iloc[0] if pd.notna(latest_row["Bandwidth"].iloc[0]) else 0.1)
             rsi_val = float(latest_row["RSI"].iloc[0])
 
-            # 5. FORMAT DASHBOARD — Separate sections for Moving Averages and Bollinger Bands
-            # Moving Averages section
+            # === OUTPUT DASHBOARD ===
+            print("\n==================================================================================================================")
+            print(f" EXPERT TECHNICAL MONITOR FOR: {company_name} ({ticker_symbol})")
+            print("==================================================================================================================")
+            
+            # Moving Averages
             ma_columns = ["Close", "20_SMA", "50_SMA", "100_SMA", "200_SMA"]
             ma_df = latest_row[ma_columns].copy()
             for col in ma_columns:
                 ma_df[col] = ma_df[col].map(lambda x: f"${x:,.2f}" if pd.notnull(x) else "$N/A")
             ma_df["14_RSI"] = f"{rsi_val:.2f}"
 
-            # Bollinger Bands section
+            print("PRICE & MOVING AVERAGES:")
+            print(ma_df.to_string(index=False))
+            print("------------------------------------------------------------------------------------------------------------------")
+            
+            # Bollinger Bands
             bb_columns = ["Upper_Band", "Median_Band", "Lower_Band", "Bandwidth"]
             bb_df = latest_row[bb_columns].copy()
             for col in bb_columns:
@@ -119,31 +128,21 @@ def main():
                 else:
                     bb_df[col] = bb_df[col].map(lambda x: f"${x:,.2f}" if pd.notnull(x) else "$N/A")
 
-            # 6. OUTPUT
-            print("\n==================================================================================================================")
-            print(f" EXPERT TECHNICAL MONITOR FOR: {company_name} ({ticker_symbol})")
-            print("==================================================================================================================")
-            
-            # Print Moving Averages section
-            print("PRICE & MOVING AVERAGES:")
-            print(ma_df.to_string(index=False))
-            print("------------------------------------------------------------------------------------------------------------------")
-            
-            # Print Bollinger Bands section
             print("BOLLINGER BANDS (20-period):")
             print(bb_df.to_string(index=False))
             print("==================================================================================================================")
+            
             print(f" Daily Volume     : {current_volume:,.0f}")
             print(f" 10-Day Avg Vol   : {avg_volume_10d:,.0f}")
-            print(f" 1-Month Avg Vol  : {avg_volume_1m:,.0f} (20-day window)")
-            print(f" 3-Month Avg Vol  : {avg_volume_3m:,.0f} (63-day window)")
+            print(f" 1-Month Avg Vol  : {avg_volume_1m:,.0f}")
+            print(f" 3-Month Avg Vol  : {avg_volume_3m:,.0f}")
             print("------------------------------------------------------------------------------------------------------------------")
             print(" QUANTITATIVE MARKET INSIGHT ALERTS:")
             print("------------------------------------------------------------------------------------------------------------------")
             
+            # ... [Your existing signal logic remains unchanged from here] ...
             signal_score = 0
 
-            # Insight 1: Volume-Price Action
             is_green_day = current_close > current_open
             heavy_volume = current_volume > (avg_volume_10d * 1.5) if avg_volume_10d > 0 else False
             
@@ -156,7 +155,6 @@ def main():
             else:
                 print(" [-] RETAIL CHOP: Normal/low volume.")
 
-            # Insight 2: Short-term trend
             if current_close > sma20:
                 print(" [^] ABOVE 20 SMA: Bullish short-term momentum.")
                 signal_score += 1
@@ -164,7 +162,6 @@ def main():
                 print(" [!] BELOW 20 SMA: Bearish short-term pressure.")
                 signal_score -= 1
 
-            # Insight 3: Long-term position
             extension_pct = ((current_close - sma200) / sma200) * 100 if sma200 != 0 else 0
             is_overextended = extension_pct > 20
             
@@ -179,7 +176,6 @@ def main():
             else:
                 signal_score -= 1
 
-            # Insight 4: Bollinger Bands
             if bandwidth < 0.06:
                 print(f" [!] VOLATILITY SQUEEZE: Tight bands ({bandwidth*100:.1f}% spread).")
             if current_close >= upper_bb:
@@ -187,7 +183,6 @@ def main():
             elif current_close <= lower_bb:
                 print(" [^] LOWER BAND TAG: Oversold reversion.")
 
-            # Insight 5: Golden/Death Cross
             if sma50 > sma200:
                 print(" [^] GOLDEN CROSS: Long-term bull structure.")
                 signal_score += 1
@@ -198,7 +193,6 @@ def main():
                     print("     -> Price reclaimed 200 SMA (potential reversal).")
                     signal_score += 1
 
-            # Insight 6: 3-day trend
             below_20_3d = all(latest_3_days["Close"] < latest_3_days["20_SMA"])
             above_20_3d = all(latest_3_days["Close"] > latest_3_days["20_SMA"])
             if below_20_3d:
@@ -210,7 +204,6 @@ def main():
             else:
                 print(" [-] Mixed 3-day action.")
 
-            # Insight 7: RSI
             if rsi_val >= 70:
                 print(f" [!] OVERBOUGHT: RSI at {rsi_val:.2f}.")
                 signal_score -= 1
