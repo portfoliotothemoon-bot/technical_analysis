@@ -102,24 +102,36 @@ def main():
             bandwidth = float(latest_row["Bandwidth"].iloc[0] if pd.notna(latest_row["Bandwidth"].iloc[0]) else 0.1)
             rsi_val = float(latest_row["RSI"].iloc[0])
 
-            # 5. FORMAT DASHBOARD — Reordered: MAs first, then Bollinger Bands 2 lines below
-            columns_to_format = [
-                "Close", 
-                "20_SMA", "50_SMA", "100_SMA", "200_SMA",   # Moving Averages
-                "Upper_Band", "Median_Band", "Lower_Band"   # Bollinger Bands (moved down)
-            ]
-            
-            print_df = latest_row[columns_to_format].copy()
-            for col in columns_to_format:
-                print_df[col] = print_df[col].map(lambda x: f"${x:,.2f}" if pd.notnull(x) else "$N/A")
+            # 5. FORMAT DASHBOARD — Separate sections for Moving Averages and Bollinger Bands
+            # Moving Averages section
+            ma_columns = ["Close", "20_SMA", "50_SMA", "100_SMA", "200_SMA"]
+            ma_df = latest_row[ma_columns].copy()
+            for col in ma_columns:
+                ma_df[col] = ma_df[col].map(lambda x: f"${x:,.2f}" if pd.notnull(x) else "$N/A")
+            ma_df["14_RSI"] = f"{rsi_val:.2f}"
 
-            print_df["14_RSI"] = f"{rsi_val:.2f}"
+            # Bollinger Bands section
+            bb_columns = ["Upper_Band", "Median_Band", "Lower_Band", "Bandwidth"]
+            bb_df = latest_row[bb_columns].copy()
+            for col in bb_columns:
+                if col == "Bandwidth":
+                    bb_df[col] = bb_df[col].map(lambda x: f"{x:.4f}" if pd.notnull(x) else "N/A")
+                else:
+                    bb_df[col] = bb_df[col].map(lambda x: f"${x:,.2f}" if pd.notnull(x) else "$N/A")
 
             # 6. OUTPUT
             print("\n==================================================================================================================")
             print(f" EXPERT TECHNICAL MONITOR FOR: {company_name} ({ticker_symbol})")
             print("==================================================================================================================")
-            print(print_df.to_string(index=False))
+            
+            # Print Moving Averages section
+            print("PRICE & MOVING AVERAGES:")
+            print(ma_df.to_string(index=False))
+            print("------------------------------------------------------------------------------------------------------------------")
+            
+            # Print Bollinger Bands section
+            print("BOLLINGER BANDS (20-period):")
+            print(bb_df.to_string(index=False))
             print("==================================================================================================================")
             print(f" Daily Volume     : {current_volume:,.0f}")
             print(f" 10-Day Avg Vol   : {avg_volume_10d:,.0f}")
