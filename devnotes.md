@@ -3,7 +3,8 @@
 1. pip is the package manager in python
 2. pip --> Prefreed Installer Program
 
-# Build a sandbox and verify
+# Build a sandbox and verify 
+0.  python -m venv .venv --> Run this command from teh location of your python project
 
 1. & C:\Users\renni\AppData\Local\Python\pythoncore-3.14-64\python.exe -m venv .venv
 2. .venv\Scripts\Activate.ps1
