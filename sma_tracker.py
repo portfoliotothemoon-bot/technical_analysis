@@ -35,16 +35,16 @@ try:
     latest_3_days = data.tail(3)
     latest_row = latest_3_days.tail(1)
     
-    # Current Single-Session Metrics
-    current_close = float(latest_row["Close"].iloc)
-    current_volume = float(latest_row["Volume"].iloc)
-    avg_volume_1m = float(latest_row["Volume_20_MA"].iloc)
-    avg_volume_3m = float(latest_row["Volume_63_MA"].iloc)
+    # --- FIX: Added [0] brackets to .iloc to pull the raw numerical data out ---
+    current_close = float(latest_row["Close"].iloc[0])
+    current_volume = float(latest_row["Volume"].iloc[0])
+    avg_volume_1m = float(latest_row["Volume_20_MA"].iloc[0])
+    avg_volume_3m = float(latest_row["Volume_63_MA"].iloc[0])
     
-    sma20 = float(latest_row["20_SMA"].iloc)
-    sma50 = float(latest_row["50_SMA"].iloc)
-    sma100 = float(latest_row["100_SMA"].iloc)
-    sma200 = float(latest_row["200_SMA"].iloc)
+    sma20 = float(latest_row["20_SMA"].iloc[0])
+    sma50 = float(latest_row["50_SMA"].iloc[0])
+    sma100 = float(latest_row["100_SMA"].iloc[0])
+    sma200 = float(latest_row["200_SMA"].iloc[0])
 
     # 5. Create a clean display copy and format its cells with '$' strings for printing
     columns_to_keep = ["Close", "20_SMA", "50_SMA", "100_SMA", "200_SMA"]
@@ -77,7 +77,6 @@ try:
         print(" [-] CHOPPY DRIFT: Price is crossing back and forth over the 20 SMA window.")
 
     # --- ENHANCEMENT 2: Upgraded Volume Support Filter ---
-    # Compare current session volume against the macro 3-month baseline to detect real interest
     volume_surge_macro = current_volume > (avg_volume_3m * 1.5)
     
     if current_close > sma50 and latest_3_days["Close"].iloc[-2] < latest_3_days["50_SMA"].iloc[-2]:
