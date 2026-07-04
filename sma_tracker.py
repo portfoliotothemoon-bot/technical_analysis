@@ -6,7 +6,7 @@ import sys
 from fred_treasury_spread import get_treasury_yield_spread
 
 print("==================================================================================================================")
-print(" QUANTITATIVE TRADING RADAR TERMINAL ENGINE v2.0")
+print(" QUANTITATIVE TRADING RADAR TERMINAL ENGINE v2.1")
 print(" -> Type 'EXIT' at the ticker prompt to close the application safely.")
 print("==================================================================================================================")
 
@@ -51,6 +51,7 @@ def main():
                 data.columns = data.columns.get_level_values(0)
 
             # === CORE TECHNICAL CALCULATIONS ===
+            data["9_EMA"] = data["Close"].ewm(span=9, adjust=False).mean()
             data["20_SMA"] = data["Close"].rolling(window=20).mean()
             data["50_SMA"] = data["Close"].rolling(window=50).mean()
             data["100_SMA"] = data["Close"].rolling(window=100).mean()
@@ -76,7 +77,7 @@ def main():
             rs = avg_gain / avg_loss.replace(0, float('nan'))
             data["RSI"] = 100 - (100 / (1 + rs))
 
-            data = data.dropna(subset=['20_SMA', '200_SMA', 'RSI', 'Upper_Band'])
+            data = data.dropna(subset=['9_EMA', '20_SMA', '200_SMA', 'RSI', 'Upper_Band'])
             if data.empty:
                 print(f"[Error] Insufficient data after calculations for '{ticker_symbol}'.")
                 continue
@@ -92,6 +93,7 @@ def main():
             avg_volume_1m = float(latest_row["Volume_20_MA"].iloc[0] if pd.notna(latest_row["Volume_20_MA"].iloc[0]) else 0)
             avg_volume_3m = float(latest_row["Volume_63_MA"].iloc[0] if pd.notna(latest_row["Volume_63_MA"].iloc[0]) else 0)
             
+            ema9 = float(latest_row["9_EMA"].iloc[0])
             sma20 = float(latest_row["20_SMA"].iloc[0])
             sma50 = float(latest_row["50_SMA"].iloc[0] if pd.notna(latest_row["50_SMA"].iloc[0]) else current_close)
             sma100 = float(latest_row["100_SMA"].iloc[0] if pd.notna(latest_row["100_SMA"].iloc[0]) else current_close)
@@ -108,8 +110,8 @@ def main():
             print(f" EXPERT TECHNICAL MONITOR FOR: {company_name} ({ticker_symbol})")
             print("==================================================================================================================")
             
-            # Moving Averages
-            ma_columns = ["Close", "20_SMA", "50_SMA", "100_SMA", "200_SMA"]
+            # Moving Averages (now including 9 EMA)
+            ma_columns = ["Close", "9_EMA", "20_SMA", "50_SMA", "100_SMA", "200_SMA"]
             ma_df = latest_row[ma_columns].copy()
             for col in ma_columns:
                 ma_df[col] = ma_df[col].map(lambda x: f"${x:,.2f}" if pd.notnull(x) else "$N/A")
@@ -140,7 +142,6 @@ def main():
             print(" QUANTITATIVE MARKET INSIGHT ALERTS:")
             print("------------------------------------------------------------------------------------------------------------------")
             
-            # ... [Your existing signal logic remains unchanged from here] ...
             signal_score = 0
 
             is_green_day = current_close > current_open
@@ -154,6 +155,14 @@ def main():
                 signal_score -= 2
             else:
                 print(" [-] RETAIL CHOP: Normal/low volume.")
+
+            # 9 EMA signals (short-term momentum)
+            if current_close > ema9:
+                print(" [^] ABOVE 9 EMA: Strong short-term bullish momentum.")
+                signal_score += 2
+            else:
+                print(" [!] BELOW 9 EMA: Short-term bearish pressure.")
+                signal_score -= 2
 
             if current_close > sma20:
                 print(" [^] ABOVE 20 SMA: Bullish short-term momentum.")
