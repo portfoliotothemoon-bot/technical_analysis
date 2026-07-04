@@ -37,12 +37,12 @@ def main():
             print("\nFetching Macro Context (Treasury Yields)...")
             get_treasury_yield_spread()
 
-            # 2. Extract 2 years of history
+            # Download data
             data = yf.download(ticker_symbol, period="2y", progress=False)
             
             if data.empty:
-                 print(f"[Error] No market data found for ticker '{ticker_symbol}'. Check spelling or connection.")
-                 continue
+                print(f"[Error] No market data found for ticker '{ticker_symbol}'. Check spelling or connection.")
+                continue
 
             if len(data) < 200:
                 print(f"[Warning] Limited historical data ({len(data)} days). Some indicators may be unreliable.")
@@ -62,6 +62,10 @@ def main():
             data["Volume_20_MA"] = data["Volume"].rolling(window=20).mean()
             data["Volume_63_MA"] = data["Volume"].rolling(window=63).mean()
 
+            # ==================== VOLUME SPREAD ANALYSIS (VSA) ====================
+            data["Candle_Spread"] = data["High"] - data["Low"]
+            data["Spread_20_MA"] = data["Candle_Spread"].rolling(window=20).mean()
+
             # Bollinger Bands
             data["20_StdDev"] = data["Close"].rolling(window=20).std()
             data["Upper_Band"] = data["20_SMA"] + (data["20_StdDev"] * 2)
@@ -78,7 +82,7 @@ def main():
             rs = avg_gain / avg_loss.replace(0, float('nan'))
             data["RSI"] = 100 - (100 / (1 + rs))
 
-            data = data.dropna(subset=['9_EMA', '20_SMA', '200_SMA', 'RSI', 'Upper_Band'])
+            data = data.dropna(subset=['9_EMA', '20_SMA', '200_SMA', 'RSI', 'Upper_Band', 'Spread_20_MA'])
             if data.empty:
                 print(f"[Error] Insufficient data after calculations for '{ticker_symbol}'.")
                 continue
@@ -89,7 +93,10 @@ def main():
             
             current_close = float(latest_row["Close"].iloc[0])
             current_open = float(latest_row["Open"].iloc[0])
+            current_high = float(latest_row["High"].iloc[0])
+            current_low = float(latest_row["Low"].iloc[0])
             current_volume = float(latest_row["Volume"].iloc[0])
+            
             avg_volume_10d = float(latest_row["Volume_10_MA"].iloc[0] if pd.notna(latest_row["Volume_10_MA"].iloc[0]) else 0)
             avg_volume_1m = float(latest_row["Volume_20_MA"].iloc[0] if pd.notna(latest_row["Volume_20_MA"].iloc[0]) else 0)
             avg_volume_3m = float(latest_row["Volume_63_MA"].iloc[0] if pd.notna(latest_row["Volume_63_MA"].iloc[0]) else 0)
@@ -106,12 +113,20 @@ def main():
             bandwidth = float(latest_row["Bandwidth"].iloc[0] if pd.notna(latest_row["Bandwidth"].iloc[0]) else 0.1)
             rsi_val = float(latest_row["RSI"].iloc[0])
 
-            # === OUTPUT DASHBOARD ===
+            # VSA Specific Variables
+            current_spread = float(latest_row["Candle_Spread"].iloc[0])
+            avg_spread_20d = float(latest_row["Spread_20_MA"].iloc[0])
+            candle_range = current_high - current_low
+            close_position = (current_close - current_low) / candle_range if candle_range > 0 else 0.5
+            heavy_volume = current_volume > (avg_volume_10d * 1.5) if avg_volume_10d > 0 else False
+            is_green_day = current_close > current_open
+
+            # === OUTPUT DASHBOARD ====================================
             print("\n==================================================================================================================")
             print(f" EXPERT TECHNICAL MONITOR FOR: {company_name} ({ticker_symbol})")
             print("==================================================================================================================")
             
-            # Moving Averages (now including 9 EMA)
+            # Moving Averages
             ma_columns = ["Close", "9_EMA", "20_SMA", "50_SMA", "100_SMA", "200_SMA"]
             ma_df = latest_row[ma_columns].copy()
             for col in ma_columns:
@@ -135,12 +150,9 @@ def main():
             print(bb_df.to_string(index=False))
             print("==================================================================================================================")
 
-                       # === INTEGRATED FIBONACCI SCRIPT LINK ===
+            # Fibonacci
             try:
-                # Call the module safely without unpacking immediately
                 fib_result = get_fibonacci_levels(ticker_symbol)
-                
-                # Check if the module returned data successfully
                 if fib_result is not None and fib_result[0] is not None:
                     fib_df, extreme_prices = fib_result
                     high_val, low_val = extreme_prices
@@ -151,7 +163,6 @@ def main():
             except Exception as fib_err:
                 print(f"FIBONACCI LEVELS: [Error] Failed to calculate external levels: {str(fib_err)}")
 
-            
             print("==================================================================================================================")
             print(f" Daily Volume     : {current_volume:,.0f}")
             print(f" 10-Day Avg Vol   : {avg_volume_10d:,.0f}")
@@ -161,11 +172,25 @@ def main():
             print(" QUANTITATIVE MARKET INSIGHT ALERTS:")
             print("------------------------------------------------------------------------------------------------------------------")
             
+            # ==================== VSA ALERTS ====================
+            print("VOLUME SPREAD ANALYSIS (VSA) ALERTS:")
+            print("==================================================================================================================")
+
+            if heavy_volume and current_spread > avg_spread_20d * 1.5:
+                if close_position > 0.6:
+                    print(" [^] VSA SELLING CLIMAX: Institutions absorbing retail panic → Potential bottom.")
+                elif close_position < 0.4:
+                    print(" [!] VSA BUYING CLIMAX: Smart money distributing → Major top risk.")
+            elif heavy_volume and current_spread < avg_spread_20d * 0.8:
+                print(" [!] VSA EFFORT VS RESULT: High volume + narrow spread → Smart money capping the move.")
+            else:
+                print(" [-] VSA Normal: Volume and spread relationship within typical range.")
+
+            print("------------------------------------------------------------------------------------------------------------------")
+
             signal_score = 0
 
-            is_green_day = current_close > current_open
-            heavy_volume = current_volume > (avg_volume_10d * 1.5) if avg_volume_10d > 0 else False
-            
+            # Volume + Candle signals
             if is_green_day and heavy_volume:
                 print(" [^] INSTITUTIONAL ACCUMULATION: Strong green close on heavy volume.")
                 signal_score += 2
@@ -175,7 +200,7 @@ def main():
             else:
                 print(" [-] RETAIL CHOP: Normal/low volume.")
 
-            # 9 EMA signals (short-term momentum)
+            # Rest of your original signals (unchanged)
             if current_close > ema9:
                 print(" [^] ABOVE 9 EMA: Strong short-term bullish momentum.")
                 signal_score += 2
