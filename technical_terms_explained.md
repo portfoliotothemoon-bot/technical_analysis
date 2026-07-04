@@ -12,3 +12,10 @@ Bandwidth Value,Meaning,Market Condition,Trading Implication
 2. 0.06 - 0.10,Wide,High volatility, Trend is strong
 3. 0.04 - 0.06,Moderate,Normal volatility,Neutral
 4. < 0.04,Narrow (Squeeze),Very low volatility, Potential big move coming
+
+# RSI trends
+
+RSI Level,Zone,Common Interpretation
+Above 70,Overbought,Potentially overextended to the upside
+30 – 70,Neutral,Normal trading range / no extreme momentum
+Below 30,Oversold,Potentially overextended to the downside
