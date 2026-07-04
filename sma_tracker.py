@@ -4,6 +4,7 @@ import sys
 
 # Import Treasury Monitor
 from fred_treasury_spread import get_treasury_yield_spread
+from fib_retracement_levels import get_fibonacci_levels
 
 print("==================================================================================================================")
 print(" QUANTITATIVE TRADING RADAR TERMINAL ENGINE v2.1")
@@ -133,7 +134,20 @@ def main():
             print("BOLLINGER BANDS (20-period):")
             print(bb_df.to_string(index=False))
             print("==================================================================================================================")
+
+            # === INTEGRATED FIBONACCI SCRIPT LINK ===
+            try:
+                fib_df, extreme_prices = get_fibonacci_levels(ticker_symbol)
+                if fib_df is not None:
+                    high_val, low_val = extreme_prices
+                    print(f"FIBONACCI 3-MONTH RETRACEMENT LEVELS (High: ${high_val:,.2f} | Low: ${low_val:,.2f}):")
+                    print(fib_df.to_string(index=False))
+                else:
+                    print("FIBONACCI LEVELS: [Error] No historical range data returned from module.")
+            except Exception as fib_err:
+                print(f"FIBONACCI LEVELS: [Error] Failed to calculate external levels: {str(fib_err)}")
             
+            print("==================================================================================================================")
             print(f" Daily Volume     : {current_volume:,.0f}")
             print(f" 10-Day Avg Vol   : {avg_volume_10d:,.0f}")
             print(f" 1-Month Avg Vol  : {avg_volume_1m:,.0f}")
