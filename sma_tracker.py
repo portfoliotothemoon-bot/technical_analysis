@@ -135,17 +135,22 @@ def main():
             print(bb_df.to_string(index=False))
             print("==================================================================================================================")
 
-            # === INTEGRATED FIBONACCI SCRIPT LINK ===
+                       # === INTEGRATED FIBONACCI SCRIPT LINK ===
             try:
-                fib_df, extreme_prices = get_fibonacci_levels(ticker_symbol)
-                if fib_df is not None:
+                # Call the module safely without unpacking immediately
+                fib_result = get_fibonacci_levels(ticker_symbol)
+                
+                # Check if the module returned data successfully
+                if fib_result is not None and fib_result[0] is not None:
+                    fib_df, extreme_prices = fib_result
                     high_val, low_val = extreme_prices
                     print(f"FIBONACCI 3-MONTH RETRACEMENT LEVELS (High: ${high_val:,.2f} | Low: ${low_val:,.2f}):")
                     print(fib_df.to_string(index=False))
                 else:
-                    print("FIBONACCI LEVELS: [Error] No historical range data returned from module.")
+                    print("FIBONACCI LEVELS: [Warning] No data found for this ticker over the last 3 months.")
             except Exception as fib_err:
                 print(f"FIBONACCI LEVELS: [Error] Failed to calculate external levels: {str(fib_err)}")
+
             
             print("==================================================================================================================")
             print(f" Daily Volume     : {current_volume:,.0f}")
