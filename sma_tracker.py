@@ -455,6 +455,107 @@ def main():
             print(f" ATR (14)       : ${atr_val:,.2f}")
             print("==================================================================================================================")
 
+            # ==================== NEW: NEXT BULLISH & BEARISH TRADING IDEAS ====================
+            print("\n==================================================================================================================")
+            print(" NEXT BULLISH & BEARISH TRADING IDEAS")
+            print("==================================================================================================================")
+
+            bullish_ideas = []
+            bearish_ideas = []
+
+            # Bullish Ideas
+            if current_close > sma20 and macd_hist > 0:
+                bullish_ideas.append("• Bullish continuation above 20 SMA with positive MACD histogram → Look for pullback to 9 EMA or 20 SMA as entry.")
+            if is_institutional_up_move:
+                bullish_ideas.append("• Institutional buying on above-average volume → Stronger conviction upside. Target next Fibonacci extension or resistance.")
+            if rsi_val < 60 and current_close > ema9:
+                bullish_ideas.append("• RSI not overbought + above short-term EMAs → Momentum trade long with tight stop below recent low.")
+            if current_close > sma200 and sma50 > sma200:
+                bullish_ideas.append("• Golden Cross structure intact → Swing long toward upper Bollinger Band or previous highs.")
+
+            # Bearish Ideas
+            if current_close < sma20 and macd_hist < 0:
+                bearish_ideas.append("• Bearish momentum below 20 SMA with negative MACD → Consider short or stay in cash.")
+            if rsi_val > 70 or current_close >= upper_bb:
+                bearish_ideas.append("• Overbought conditions (high RSI or Upper BB tag) → Potential mean reversion or short setup.")
+            if is_retail_up_move and current_close > sma200 * 1.15:
+                bearish_ideas.append("• Retail-driven rally on low volume near extension zone → High risk of reversal. Watch for distribution.")
+            if sma50 < sma200:
+                bearish_ideas.append("• Death Cross environment → Favor bearish bias or defensive positioning.")
+
+            if bullish_ideas:
+                print(" 🟢 BULLISH TRADING IDEAS:")
+                for idea in bullish_ideas[:3]:   # Limit to top 3
+                    print(idea)
+            else:
+                print(" 🟢 BULLISH TRADING IDEAS: Limited bullish signals at the moment.")
+
+            print("---")
+            if bearish_ideas:
+                print(" 🔴 BEARISH TRADING IDEAS:")
+                for idea in bearish_ideas[:3]:
+                    print(idea)
+            else:
+                print(" 🔴 BEARISH TRADING IDEAS: No strong bearish signals currently.")
+
+            print("==================================================================================================================")
+
+            # ==================== NEW: SPECIFIC BULLISH & BEARISH TRADE EXAMPLES ====================
+            print("\n==================================================================================================================")
+            print(" CONCRETE BULLISH & BEARISH TRADE SETUPS")
+            print("==================================================================================================================")
+
+            atr = atr_val
+            price = current_close
+
+            # === BULLISH TRADE SETUP ===
+            print(" 🟢 BULLISH TRADE EXAMPLE (Long Setup)")
+            
+            if current_close > ema9 and macd_hist > 0:
+                bullish_entry = price * 1.002   # slight premium for limit order
+                bullish_stop = max(current_low * 0.982, price - atr * 2.0)
+                bullish_tp1 = price + (price - bullish_stop) * 2.0
+                bullish_tp2 = price + (price - bullish_stop) * 3.5
+                
+                risk = price - bullish_stop
+                reward = bullish_tp2 - price
+                
+                print(f" Entry (Limit)     : ${bullish_entry:,.2f}")
+                print(f" Stop Loss         : ${bullish_stop:,.2f}  (-{((price - bullish_stop)/price*100):.2f}%)")
+                print(f" Take Profit 1     : ${bullish_tp1:,.2f}  (2R)")
+                print(f" Take Profit 2     : ${bullish_tp2:,.2f}  (3.5R)")
+                print(f" Risk:Reward       : 1:{(reward/risk):.2f}")
+                print(" Rationale         : Bullish momentum (above 9EMA + positive MACD). Good for swing trade.")
+            else:
+                print(" No strong bullish setup at the moment. Wait for better alignment.")
+
+            print("---")
+
+            # === BEARISH TRADE SETUP ===
+            print(" 🔴 BEARISH TRADE EXAMPLE (Short Setup)")
+            
+            if current_close < ema9 and macd_hist < 0:
+                bearish_entry = price * 0.998   # slight discount for limit
+                bearish_stop = min(current_high * 1.018, price + atr * 2.0)
+                bearish_tp1 = price - (bearish_stop - price) * 2.0
+                bearish_tp2 = price - (bearish_stop - price) * 3.5
+                
+                risk = bearish_stop - price
+                reward = price - bearish_tp2
+                
+                print(f" Entry (Limit)     : ${bearish_entry:,.2f}")
+                print(f" Stop Loss         : ${bearish_stop:,.2f}  (+{((bearish_stop - price)/price*100):.2f}%)")
+                print(f" Take Profit 1     : ${bearish_tp1:,.2f}  (2R)")
+                print(f" Take Profit 2     : ${bearish_tp2:,.2f}  (3.5R)")
+                print(f" Risk:Reward       : 1:{(reward/risk):.2f}")
+                print(" Rationale         : Bearish momentum (below 9EMA + negative MACD).")
+            else:
+                print(" No strong bearish setup at the moment. Wait for confirmation.")
+
+            print("==================================================================================================================")
+            print(" ⚠️  Always use proper position sizing. These are algorithmic suggestions based on current signals.")
+            print("==================================================================================================================")
+
         except Exception as e:
             print(f"[Critical Error] Failed to process {ticker_symbol}: {str(e)}")
             continue
