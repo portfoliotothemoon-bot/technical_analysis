@@ -6,6 +6,7 @@ import datetime
 
 from fred_treasury_spread import get_treasury_yield_spread
 from fib_retracement_levels import get_fibonacci_levels
+from short_interest import get_short_interest
 
 print("==================================================================================================================")
 print(" QUANTITATIVE TRADING RADAR TERMINAL ENGINE v2.3")
@@ -127,6 +128,8 @@ def main():
 
             print("\nFetching Macro Context (Treasury Yields)...")
             get_treasury_yield_spread()
+
+            short_interest_details = get_short_interest(ticker_symbol)
 
             data = yf.download(ticker_symbol, period="2y", progress=False)
             
@@ -275,6 +278,22 @@ def main():
             print(f" 10-Day Avg Vol   : {avg_volume_10d:,.0f}")
             print(f" 1-Month Avg Vol  : {avg_volume_1m:,.0f}")
             print(f" 3-Month Avg Vol  : {avg_volume_3m:,.0f}")
+
+            print("------------------------------------------------------------------------------------------------------------------")
+            print(" SHORT INTEREST DETAILS:")
+            print("------------------------------------------------------------------------------------------------------------------")             
+            # SHORT INTEREST DETAILS
+            if short_interest_details:
+                print(f"Short Interest for {short_interest_details['ticker']}:")
+                print(f"Shares Short: {short_interest_details['shares_short']:,}")
+                print(f"Short % of Float: {short_interest_details['short_percent_float']}")
+                print(f"Days to Cover: {short_interest_details['short_ratio']}")
+        
+                # You can now use the values easily:
+                short_percent = short_interest_details["short_percent_float"]
+                if short_percent and short_percent > 0.20:
+                    print("⚠️ High short interest!")
+            
             print("------------------------------------------------------------------------------------------------------------------")
             print(" QUANTITATIVE MARKET INSIGHT ALERTS:")
             print("------------------------------------------------------------------------------------------------------------------")
