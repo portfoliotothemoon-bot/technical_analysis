@@ -34,12 +34,9 @@ def get_next_earnings_date(ticker_obj):
     today = datetime.datetime.now().date()
     
     try:
-        # === Primary method: ticker.calendar ===
         calendar = ticker_obj.calendar
         if calendar is not None and not calendar.empty:
-            # Handle different possible structures
             if isinstance(calendar, pd.DataFrame):
-                # Common format: rows like "Earnings Date"
                 if 'Earnings Date' in calendar.index:
                     dates = calendar.loc['Earnings Date']
                     for d in dates:
@@ -53,7 +50,6 @@ def get_next_earnings_date(ticker_obj):
                                     continue
                             if d_date > today:
                                 return d_date.strftime('%Y-%m-%d')
-                # Fallback: scan all values for future dates
                 for col in calendar.columns:
                     for val in calendar[col]:
                         if pd.notna(val):
@@ -72,11 +68,10 @@ def get_next_earnings_date(ticker_obj):
                                 return dt.strftime('%Y-%m-%d')
                         except:
                             continue
-    except Exception as e:
-        pass  # silent fail, try next method
+    except Exception:
+        pass
 
     try:
-        # === Secondary: get_earnings_dates ===
         earnings_df = ticker_obj.get_earnings_dates(limit=10)
         if earnings_df is not None and not earnings_df.empty:
             for idx in earnings_df.index:
@@ -86,7 +81,6 @@ def get_next_earnings_date(ticker_obj):
         pass
 
     try:
-        # === Tertiary: info field ===
         info = ticker_obj.info
         earnings_keys = ['earningsDate', 'nextEarningsDate', 'earningsTimestamp']
         for key in earnings_keys:
@@ -129,7 +123,6 @@ def main():
             except Exception:
                 company_name = ticker_symbol
 
-            # Get next earnings date
             next_earnings = get_next_earnings_date(ticker_metadata)
 
             print("\nFetching Macro Context (Treasury Yields)...")
@@ -173,8 +166,6 @@ def main():
             data["RSI"] = 100 - (100 / (1 + rs))
 
             data["ATR"] = calculate_atr(data)
-            
-            # === NEW: MACD ===
             data = calculate_macd(data)
 
             data = data.dropna(subset=['9_EMA', '20_SMA', '200_SMA', 'RSI', 'Upper_Band', 'Spread_20_MA', 'ATR', 'MACD_Line'])
@@ -206,13 +197,26 @@ def main():
             rsi_val = float(latest_row["RSI"].iloc[0])
             atr_val = float(latest_row["ATR"].iloc[0])
 
-            # MACD values
             macd_line = float(latest_row["MACD_Line"].iloc[0])
             macd_signal = float(latest_row["MACD_Signal"].iloc[0])
             macd_hist = float(latest_row["MACD_Hist"].iloc[0])
 
             heavy_volume = current_volume > (avg_volume_10d * 1.5) if avg_volume_10d > 0 else False
             is_green_day = current_close > current_open
+
+            # ==================== VOLUME PARTICIPATION LOGIC ====================
+            low_volume_threshold = 0.70
+            is_low_volume = (current_volume < (avg_volume_10d * low_volume_threshold) and 
+                           current_volume < (avg_volume_1m * low_volume_threshold) and 
+                           current_volume < (avg_volume_3m * low_volume_threshold)) if avg_volume_10d > 0 else False
+
+            is_retail_up_move = is_green_day and is_low_volume
+
+            # NEW: Institutional participation (above average but not extreme)
+            is_institutional_up_move = (is_green_day and 
+                                       current_volume > avg_volume_10d and 
+                                       not heavy_volume) if avg_volume_10d > 0 else False
+            # =================================================================
 
             # ==================== OUTPUT DASHBOARD ====================
             print("\n==================================================================================================================")
@@ -241,7 +245,6 @@ def main():
             print(bb_df.to_string(index=False))
             print("------------------------------------------------------------------------------------------------------------------")
 
-            # MACD Section
             print("MACD (12,26,9):")
             print(f"  MACD Line   : {macd_line:.4f}")
             print(f"  Signal Line : {macd_signal:.4f}")
@@ -255,7 +258,6 @@ def main():
                 print("  [-] NEUTRAL: MACD near Signal line or flat histogram")
             print("==================================================================================================================")
 
-            # Fibonacci
             try:
                 fib_result = get_fibonacci_levels(ticker_symbol)
                 if fib_result is not None and fib_result[0] is not None:
@@ -277,8 +279,13 @@ def main():
             print(" QUANTITATIVE MARKET INSIGHT ALERTS:")
             print("------------------------------------------------------------------------------------------------------------------")
             
-            # ... (all the original VSA, signals, verdict, trade recommendation, etc. remain 100% unchanged) ...
-
+            # New Institutional + Retail alerts
+            if is_retail_up_move:
+                print(" 🚨 RETAIL-DRIVEN MOVE: Price UP on LOW VOLUME (retail participation dominant)")
+            elif is_institutional_up_move:
+                print(" 🏦 INSTITUTIONAL PARTICIPATION: Price UP on ABOVE-AVERAGE volume (healthy institutional buying)")
+            
+            # YOUR ORIGINAL LOGIC (fully preserved)
             signal_score = 0
 
             if is_green_day and heavy_volume:
@@ -304,7 +311,6 @@ def main():
                 print(" [!] BELOW 20 SMA: Bearish short-term pressure.")
                 signal_score -= 1
 
-            # MACD contribution to score
             if macd_line > macd_signal and macd_hist > 0:
                 print(" [^] MACD BULLISH CROSSOVER")
                 signal_score += 2
@@ -365,7 +371,7 @@ def main():
             else:
                 print(f" [-] Neutral RSI: {rsi_val:.2f}.")
 
-            # Final Verdict (unchanged logic)
+            # Final Verdict + Trade Recommendation (unchanged)
             print("------------------------------------------------------------------------------------------------------------------")
             print(" ALGORITHMIC TRADING SIGNAL VERDICT:")
             print("------------------------------------------------------------------------------------------------------------------")
@@ -400,8 +406,6 @@ def main():
             print(f" OVERALL SIGNAL: {verdict}")
             print(f" STRENGTH: {strength} | Score: {signal_score}")
 
-            # Trade recommendation and rest of the script unchanged...
-            # ==================== TRADE RECOMMENDATION ====================
             print("\n==================================================================================================================")
             print(" NEXT TRADE SETUP RECOMMENDATION")
             print("==================================================================================================================")
