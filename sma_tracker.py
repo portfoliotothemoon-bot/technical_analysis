@@ -2,6 +2,7 @@ import pandas as pd
 import yfinance as yf
 import sys
 import numpy as np
+import datetime
 
 from fred_treasury_spread import get_treasury_yield_spread
 from fib_retracement_levels import get_fibonacci_levels
@@ -18,6 +19,85 @@ def calculate_atr(data, period=14):
     tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
     atr = tr.rolling(window=period).mean()
     return atr
+
+def get_next_earnings_date(ticker_obj):
+    """Improved next earnings date fetcher"""
+    today = datetime.datetime.now().date()
+    
+    try:
+        # === Primary method: ticker.calendar ===
+        calendar = ticker_obj.calendar
+        if calendar is not None and not calendar.empty:
+            # Handle different possible structures
+            if isinstance(calendar, pd.DataFrame):
+                # Common format: rows like "Earnings Date"
+                if 'Earnings Date' in calendar.index:
+                    dates = calendar.loc['Earnings Date']
+                    for d in dates:
+                        if pd.notna(d):
+                            if isinstance(d, (datetime.datetime, pd.Timestamp)):
+                                d_date = d.date() if hasattr(d, 'date') else d
+                            else:
+                                try:
+                                    d_date = pd.to_datetime(d).date()
+                                except:
+                                    continue
+                            if d_date > today:
+                                return d_date.strftime('%Y-%m-%d')
+                # Fallback: scan all values for future dates
+                for col in calendar.columns:
+                    for val in calendar[col]:
+                        if pd.notna(val):
+                            try:
+                                dt = pd.to_datetime(val)
+                                if dt.date() > today:
+                                    return dt.strftime('%Y-%m-%d')
+                            except:
+                                continue
+            elif isinstance(calendar, dict):
+                for key, value in calendar.items():
+                    if 'earnings' in str(key).lower() or 'date' in str(key).lower():
+                        try:
+                            dt = pd.to_datetime(value)
+                            if dt.date() > today:
+                                return dt.strftime('%Y-%m-%d')
+                        except:
+                            continue
+    except Exception as e:
+        pass  # silent fail, try next method
+
+    try:
+        # === Secondary: get_earnings_dates ===
+        earnings_df = ticker_obj.get_earnings_dates(limit=10)
+        if earnings_df is not None and not earnings_df.empty:
+            for idx in earnings_df.index:
+                if isinstance(idx, (datetime.datetime, pd.Timestamp)) and idx.date() > today:
+                    return idx.strftime('%Y-%m-%d')
+    except:
+        pass
+
+    try:
+        # === Tertiary: info field ===
+        info = ticker_obj.info
+        earnings_keys = ['earningsDate', 'nextEarningsDate', 'earningsTimestamp']
+        for key in earnings_keys:
+            if key in info and info[key]:
+                val = info[key]
+                if isinstance(val, list) and val:
+                    val = val[0]
+                try:
+                    if isinstance(val, (int, float)):
+                        dt = datetime.datetime.fromtimestamp(val)
+                    else:
+                        dt = pd.to_datetime(val)
+                    if dt.date() > today:
+                        return dt.strftime('%Y-%m-%d')
+                except:
+                    continue
+    except:
+        pass
+
+    return "N/A"
 
 def main():
     while True:
@@ -39,6 +119,9 @@ def main():
                 company_name = ticker_metadata.info.get("longName", ticker_symbol)
             except Exception:
                 company_name = ticker_symbol
+
+            # Get next earnings date
+            next_earnings = get_next_earnings_date(ticker_metadata)
 
             print("\nFetching Macro Context (Treasury Yields)...")
             get_treasury_yield_spread()
@@ -116,9 +199,11 @@ def main():
 
             # ==================== OUTPUT DASHBOARD ====================
             print("\n==================================================================================================================")
-            print(f" EXPERT TECHNICAL MONITOR FOR: {company_name} ({ticker_symbol})")
+            print(f" EXPERT TECHNICAL MONITOR FOR: {company_name} ({ticker_symbol}) | Next Earnings: {next_earnings}")
             print("==================================================================================================================")
             
+            # ... [rest of your original code remains exactly the same] ...
+
             ma_columns = ["Close", "9_EMA", "20_SMA", "50_SMA", "100_SMA", "200_SMA"]
             ma_df = latest_row[ma_columns].copy()
             for col in ma_columns:
