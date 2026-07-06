@@ -43,7 +43,7 @@ def get_next_earnings_date(ticker_obj):
                     dates = calendar.loc['Earnings Date']
                     for d in dates:
                         if pd.notna(d):
-                            if isinstance(d, (datetime.datetime, pd.Timestamp)):
+                            if isinstance(d, (datetime.datetime.datetime, pd.Timestamp)):
                                 d_date = d.date() if hasattr(d, 'date') else d
                             else:
                                 try:
@@ -77,7 +77,7 @@ def get_next_earnings_date(ticker_obj):
         earnings_df = ticker_obj.get_earnings_dates(limit=10)
         if earnings_df is not None and not earnings_df.empty:
             for idx in earnings_df.index:
-                if isinstance(idx, (datetime.datetime, pd.Timestamp)) and idx.date() > today:
+                if isinstance(idx, (datetime.datetime.datetime, pd.Timestamp)) and idx.date() > today:
                     return idx.strftime('%Y-%m-%d')
     except:
         pass
@@ -92,7 +92,7 @@ def get_next_earnings_date(ticker_obj):
                     val = val[0]
                 try:
                     if isinstance(val, (int, float)):
-                        dt = datetime.datetime.fromtimestamp(val)
+                        dt = datetime.datetime.datetime.fromtimestamp(val)
                     else:
                         dt = pd.to_datetime(val)
                     if dt.date() > today:
@@ -551,7 +551,7 @@ def main():
             else:
                 print(" No strong bullish setup at the moment. Wait for better alignment.")
 
-            print("---")
+            print("==================================================================================================================")
 
             # === BEARISH TRADE SETUP ===
             print(" 🔴 BEARISH TRADE EXAMPLE (Short Setup)")
@@ -573,13 +573,32 @@ def main():
                 print(" Rationale         : Bearish momentum (below 9EMA + negative MACD).")
             else:
                 print(" No strong bearish setup at the moment. Wait for confirmation.")
+            # warning messages
+            twenty_five_percent = "25"
+            fifty_percent = "50"
+            tdy = datetime.datetime.now()
+            # Find the next Friday
+            days_ahead = (4 - tdy.weekday()) % 7  # Friday is 4 (Monday=0)
+            if days_ahead == 0:
+             days_ahead = 7  # If today is Friday, get next Friday
+
+            next_friday = tdy + datetime.timedelta(days=days_ahead)
+            # Format the message
+            message = (
+                f"Today is {tdy.strftime('%A')} {tdy.strftime('%m/%d/%Y')}, "
+                f"can your trade wait until Friday, {next_friday.strftime('%m/%d/%Y')}?"
+            )
 
             print("==================================================================================================================")
             print(" ⚠️  Always use proper position sizing. These are algorithmic suggestions based on current signals.")
             print("==================================================================================================================")
 
             print("==================================================================================================================")
-            print(" ⚠️ START SMALL. MAKE SURE TO FOLLOW 25-50-25 BUYING PATTERN")
+            print(f" ⚠️ START SMALL. MAKE SURE TO FOLLOW 25-50-25 BUYING PATTERN - {twenty_five_percent}%- {fifty_percent}% - {twenty_five_percent}%")
+            print("==================================================================================================================")
+
+            print("==================================================================================================================")
+            print(f" ⚠️  {message}")
             print("==================================================================================================================")
 
         except Exception as e:
