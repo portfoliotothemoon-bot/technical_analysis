@@ -2,22 +2,21 @@ import pandas as pd
 import yfinance as yf
 import sys
 import numpy as np
+import datetime
 
+from fomc_warning import get_fomc_warning, print_fomc_warning
 from fred_treasury_spread import get_treasury_yield_spread
 from fib_retracement_levels import get_fibonacci_levels
+from short_interest import get_short_interest
+
+from calculate_atr import calculate_atr
+from calculate_macd import calculate_macd
+from earnings_fetcher import get_next_earnings_date
 
 print("==================================================================================================================")
 print(" QUANTITATIVE TRADING RADAR TERMINAL ENGINE v2.3")
 print(" -> Type 'EXIT' at the ticker prompt to close the application safely.")
 print("==================================================================================================================")
-
-def calculate_atr(data, period=14):
-    high_low = data['High'] - data['Low']
-    high_close = np.abs(data['High'] - data['Close'].shift())
-    low_close = np.abs(data['Low'] - data['Close'].shift())
-    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
-    atr = tr.rolling(window=period).mean()
-    return atr
 
 def main():
     while True:
@@ -40,8 +39,14 @@ def main():
             except Exception:
                 company_name = ticker_symbol
 
+            next_earnings = get_next_earnings_date(ticker_metadata)
+
             print("\nFetching Macro Context (Treasury Yields)...")
             get_treasury_yield_spread()
+                        
+            print_fomc_warning()            
+
+            short_interest_details = get_short_interest(ticker_symbol)
 
             data = yf.download(ticker_symbol, period="2y", progress=False)
             
@@ -81,8 +86,9 @@ def main():
             data["RSI"] = 100 - (100 / (1 + rs))
 
             data["ATR"] = calculate_atr(data)
+            data = calculate_macd(data)
 
-            data = data.dropna(subset=['9_EMA', '20_SMA', '200_SMA', 'RSI', 'Upper_Band', 'Spread_20_MA', 'ATR'])
+            data = data.dropna(subset=['9_EMA', '20_SMA', '200_SMA', 'RSI', 'Upper_Band', 'Spread_20_MA', 'ATR', 'MACD_Line'])
             if data.empty:
                 print(f"[Error] Insufficient data after calculations for '{ticker_symbol}'.")
                 continue
@@ -111,13 +117,31 @@ def main():
             rsi_val = float(latest_row["RSI"].iloc[0])
             atr_val = float(latest_row["ATR"].iloc[0])
 
+            macd_line = float(latest_row["MACD_Line"].iloc[0])
+            macd_signal = float(latest_row["MACD_Signal"].iloc[0])
+            macd_hist = float(latest_row["MACD_Hist"].iloc[0])
+
             heavy_volume = current_volume > (avg_volume_10d * 1.5) if avg_volume_10d > 0 else False
             is_green_day = current_close > current_open
 
+            # ==================== VOLUME PARTICIPATION LOGIC ====================
+            low_volume_threshold = 0.70
+            is_low_volume = (current_volume < (avg_volume_10d * low_volume_threshold) and 
+                           current_volume < (avg_volume_1m * low_volume_threshold) and 
+                           current_volume < (avg_volume_3m * low_volume_threshold)) if avg_volume_10d > 0 else False
+
+            is_retail_up_move = is_green_day and is_low_volume
+
+            # NEW: Institutional participation (above average but not extreme)
+            is_institutional_up_move = (is_green_day and 
+                                       current_volume > avg_volume_10d and 
+                                       not heavy_volume) if avg_volume_10d > 0 else False
+            # =================================================================
+
             # ==================== OUTPUT DASHBOARD ====================
-            print("\n==================================================================================================================")
-            print(f" EXPERT TECHNICAL MONITOR FOR: {company_name} ({ticker_symbol})")
-            print("==================================================================================================================")
+            print("\n===================================================================================================================================")
+            print(f" EXPERT TECHNICAL MONITOR FOR: {company_name} ({ticker_symbol}) | Next Earnings: {next_earnings} -  ⚠️ TRADE WITH THE TREND")
+            print("====================================================================================================================================")
             
             ma_columns = ["Close", "9_EMA", "20_SMA", "50_SMA", "100_SMA", "200_SMA"]
             ma_df = latest_row[ma_columns].copy()
@@ -139,9 +163,21 @@ def main():
 
             print("BOLLINGER BANDS (20-period):")
             print(bb_df.to_string(index=False))
+            print("------------------------------------------------------------------------------------------------------------------")
+
+            print("MACD (12,26,9):")
+            print(f"  MACD Line   : {macd_line:.4f}")
+            print(f"  Signal Line : {macd_signal:.4f}")
+            print(f"  Histogram   : {macd_hist:.4f}")
+            
+            if macd_line > macd_signal and macd_hist > 0:
+                print("  [^] BULLISH MOMENTUM: MACD above Signal + positive histogram")
+            elif macd_line < macd_signal and macd_hist < 0:
+                print("  [!] BEARISH MOMENTUM: MACD below Signal + negative histogram")
+            else:
+                print("  [-] NEUTRAL: MACD near Signal line or flat histogram")
             print("==================================================================================================================")
 
-            # Fibonacci
             try:
                 fib_result = get_fibonacci_levels(ticker_symbol)
                 if fib_result is not None and fib_result[0] is not None:
@@ -159,30 +195,33 @@ def main():
             print(f" 10-Day Avg Vol   : {avg_volume_10d:,.0f}")
             print(f" 1-Month Avg Vol  : {avg_volume_1m:,.0f}")
             print(f" 3-Month Avg Vol  : {avg_volume_3m:,.0f}")
+
+            print("------------------------------------------------------------------------------------------------------------------")
+            print(" SHORT INTEREST DETAILS:")
+            print("------------------------------------------------------------------------------------------------------------------")             
+            # SHORT INTEREST DETAILS
+            if short_interest_details:
+                print(f"Short Interest for {short_interest_details['ticker']}:")
+                print(f"Shares Short: {short_interest_details['shares_short']:,}")
+                print(f"Short % of Float: {short_interest_details['short_percent_float']}")
+                print(f"Days to Cover: {short_interest_details['short_ratio']}")
+        
+                # You can now use the values easily:
+                short_percent = short_interest_details["short_percent_float"]
+                if short_percent and short_percent > 0.20:
+                    print("⚠️ High short interest!")
+            
             print("------------------------------------------------------------------------------------------------------------------")
             print(" QUANTITATIVE MARKET INSIGHT ALERTS:")
             print("------------------------------------------------------------------------------------------------------------------")
             
-            print("VOLUME SPREAD ANALYSIS (VSA) ALERTS:")
-            print("==================================================================================================================")
-
-            current_spread = float(latest_row["Candle_Spread"].iloc[0])
-            avg_spread_20d = float(latest_row["Spread_20_MA"].iloc[0])
-            candle_range = current_high - current_low
-            close_position = (current_close - current_low) / candle_range if candle_range > 0 else 0.5
-
-            if heavy_volume and current_spread > avg_spread_20d * 1.5:
-                if close_position > 0.6:
-                    print(" [^] VSA SELLING CLIMAX: Institutions absorbing retail panic → Potential bottom.")
-                elif close_position < 0.4:
-                    print(" [!] VSA BUYING CLIMAX: Smart money distributing → Major top risk.")
-            elif heavy_volume and current_spread < avg_spread_20d * 0.8:
-                print(" [!] VSA EFFORT VS RESULT: High volume + narrow spread → Smart money capping the move.")
-            else:
-                print(" [-] VSA Normal: Volume and spread relationship within typical range.")
-
-            print("------------------------------------------------------------------------------------------------------------------")
-
+            # New Institutional + Retail alerts
+            if is_retail_up_move:
+                print(" 🚨 RETAIL-DRIVEN MOVE: Price UP on LOW VOLUME (retail participation dominant)")
+            elif is_institutional_up_move:
+                print(" 🏦 INSTITUTIONAL PARTICIPATION: Price UP on ABOVE-AVERAGE volume (healthy institutional buying)")
+            
+            # YOUR ORIGINAL LOGIC (fully preserved)
             signal_score = 0
 
             if is_green_day and heavy_volume:
@@ -207,6 +246,15 @@ def main():
             else:
                 print(" [!] BELOW 20 SMA: Bearish short-term pressure.")
                 signal_score -= 1
+
+            if macd_line > macd_signal and macd_hist > 0:
+                print(" [^] MACD BULLISH CROSSOVER")
+                signal_score += 2
+            elif macd_line < macd_signal and macd_hist < 0:
+                print(" [!] MACD BEARISH CROSSOVER")
+                signal_score -= 2
+            else:
+                print(" [-] MACD Neutral")
 
             extension_pct = ((current_close - sma200) / sma200) * 100 if sma200 != 0 else 0
             is_overextended = extension_pct > 20
@@ -259,7 +307,7 @@ def main():
             else:
                 print(f" [-] Neutral RSI: {rsi_val:.2f}.")
 
-            # Final Verdict
+            # Final Verdict + Trade Recommendation (unchanged)
             print("------------------------------------------------------------------------------------------------------------------")
             print(" ALGORITHMIC TRADING SIGNAL VERDICT:")
             print("------------------------------------------------------------------------------------------------------------------")
@@ -294,7 +342,6 @@ def main():
             print(f" OVERALL SIGNAL: {verdict}")
             print(f" STRENGTH: {strength} | Score: {signal_score}")
 
-            # ==================== TRADE RECOMMENDATION ====================
             print("\n==================================================================================================================")
             print(" NEXT TRADE SETUP RECOMMENDATION")
             print("==================================================================================================================")
@@ -342,6 +389,130 @@ def main():
 
             print("------------------------------------------------------------------------------------------------------------------")
             print(f" ATR (14)       : ${atr_val:,.2f}")
+            print("==================================================================================================================")
+
+            # ==================== NEW: NEXT BULLISH & BEARISH TRADING IDEAS ====================
+            print("\n==================================================================================================================")
+            print(" NEXT BULLISH & BEARISH TRADING IDEAS")
+            print("==================================================================================================================")
+
+            bullish_ideas = []
+            bearish_ideas = []
+
+            # Bullish Ideas
+            if current_close > sma20 and macd_hist > 0:
+                bullish_ideas.append("• Bullish continuation above 20 SMA with positive MACD histogram → Look for pullback to 9 EMA or 20 SMA as entry.")
+            if is_institutional_up_move:
+                bullish_ideas.append("• Institutional buying on above-average volume → Stronger conviction upside. Target next Fibonacci extension or resistance.")
+            if rsi_val < 60 and current_close > ema9:
+                bullish_ideas.append("• RSI not overbought + above short-term EMAs → Momentum trade long with tight stop below recent low.")
+            if current_close > sma200 and sma50 > sma200:
+                bullish_ideas.append("• Golden Cross structure intact → Swing long toward upper Bollinger Band or previous highs.")
+
+            # Bearish Ideas
+            if current_close < sma20 and macd_hist < 0:
+                bearish_ideas.append("• Bearish momentum below 20 SMA with negative MACD → Consider short or stay in cash.")
+            if rsi_val > 70 or current_close >= upper_bb:
+                bearish_ideas.append("• Overbought conditions (high RSI or Upper BB tag) → Potential mean reversion or short setup.")
+            if is_retail_up_move and current_close > sma200 * 1.15:
+                bearish_ideas.append("• Retail-driven rally on low volume near extension zone → High risk of reversal. Watch for distribution.")
+            if sma50 < sma200:
+                bearish_ideas.append("• Death Cross environment → Favor bearish bias or defensive positioning.")
+
+            if bullish_ideas:
+                print(" 🟢 BULLISH TRADING IDEAS:")
+                for idea in bullish_ideas[:3]:   # Limit to top 3
+                    print(idea)
+            else:
+                print(" 🟢 BULLISH TRADING IDEAS: Limited bullish signals at the moment.")
+
+            print("---")
+            if bearish_ideas:
+                print(" 🔴 BEARISH TRADING IDEAS:")
+                for idea in bearish_ideas[:3]:
+                    print(idea)
+            else:
+                print(" 🔴 BEARISH TRADING IDEAS: No strong bearish signals currently.")
+
+            print("==================================================================================================================")
+
+            # ==================== NEW: SPECIFIC BULLISH & BEARISH TRADE EXAMPLES ====================
+            print("\n==================================================================================================================")
+            print(" CONCRETE BULLISH & BEARISH TRADE SETUPS")
+            print("==================================================================================================================")
+
+            atr = atr_val
+            price = current_close
+
+            # === BULLISH TRADE SETUP ===
+            print(" 🟢 BULLISH TRADE EXAMPLE (Long Setup)")
+            
+            if current_close > ema9 and macd_hist > 0:
+                bullish_entry = price * 1.002   # slight premium for limit order
+                bullish_stop = max(current_low * 0.982, price - atr * 2.0)
+                bullish_tp1 = price + (price - bullish_stop) * 2.0
+                bullish_tp2 = price + (price - bullish_stop) * 3.5
+                
+                risk = price - bullish_stop
+                reward = bullish_tp2 - price
+                
+                print(f" Entry (Limit)     : ${bullish_entry:,.2f}")
+                print(f" Stop Loss         : ${bullish_stop:,.2f}  (-{((price - bullish_stop)/price*100):.2f}%)")
+                print(f" Take Profit 1     : ${bullish_tp1:,.2f}  (2R)")
+                print(f" Take Profit 2     : ${bullish_tp2:,.2f}  (3.5R)")
+                print(f" Risk:Reward       : 1:{(reward/risk):.2f}")
+                print(" Rationale         : Bullish momentum (above 9EMA + positive MACD). Good for swing trade.")
+            else:
+                print(" No strong bullish setup at the moment. Wait for better alignment.")
+
+            print("==================================================================================================================")
+
+            # === BEARISH TRADE SETUP ===
+            print(" 🔴 BEARISH TRADE EXAMPLE (Short Setup)")
+            
+            if current_close < ema9 and macd_hist < 0:
+                bearish_entry = price * 0.998   # slight discount for limit
+                bearish_stop = min(current_high * 1.018, price + atr * 2.0)
+                bearish_tp1 = price - (bearish_stop - price) * 2.0
+                bearish_tp2 = price - (bearish_stop - price) * 3.5
+                
+                risk = bearish_stop - price
+                reward = price - bearish_tp2
+                
+                print(f" Entry (Limit)     : ${bearish_entry:,.2f}")
+                print(f" Stop Loss         : ${bearish_stop:,.2f}  (+{((bearish_stop - price)/price*100):.2f}%)")
+                print(f" Take Profit 1     : ${bearish_tp1:,.2f}  (2R)")
+                print(f" Take Profit 2     : ${bearish_tp2:,.2f}  (3.5R)")
+                print(f" Risk:Reward       : 1:{(reward/risk):.2f}")
+                print(" Rationale         : Bearish momentum (below 9EMA + negative MACD).")
+            else:
+                print(" No strong bearish setup at the moment. Wait for confirmation.")
+            # warning messages
+            twenty_five_percent = "25"
+            fifty_percent = "50"
+            tdy = datetime.datetime.now()
+            # Find the next Friday
+            days_ahead = (4 - tdy.weekday()) % 7  # Friday is 4 (Monday=0)
+            if days_ahead == 0:
+             days_ahead = 7  # If today is Friday, get next Friday
+
+            next_friday = tdy + datetime.timedelta(days=days_ahead)
+            # Format the message
+            message = (
+                f"Today is {tdy.strftime('%A')} {tdy.strftime('%m/%d/%Y')}, "
+                f"can your trade wait until Friday, {next_friday.strftime('%m/%d/%Y')}?"
+            )
+
+            print("==================================================================================================================")
+            print(" ⚠️  Always use proper position sizing. These are algorithmic suggestions based on current signals.")
+            print("==================================================================================================================")
+
+            print("==================================================================================================================")
+            print(f" ⚠️ START SMALL. MAKE SURE TO FOLLOW 25-50-25 BUYING PATTERN - {twenty_five_percent}%- {fifty_percent}% - {twenty_five_percent}%")
+            print("==================================================================================================================")
+
+            print("==================================================================================================================")
+            print(f" ⚠️  {message}")
             print("==================================================================================================================")
 
         except Exception as e:

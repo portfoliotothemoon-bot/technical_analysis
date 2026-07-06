@@ -9,100 +9,14 @@ from fred_treasury_spread import get_treasury_yield_spread
 from fib_retracement_levels import get_fibonacci_levels
 from short_interest import get_short_interest
 
+from calculate_atr import calculate_atr
+from calculate_macd import calculate_macd
+from earnings_fetcher import get_next_earnings_date
+
 print("==================================================================================================================")
 print(" QUANTITATIVE TRADING RADAR TERMINAL ENGINE v2.3")
 print(" -> Type 'EXIT' at the ticker prompt to close the application safely.")
 print("==================================================================================================================")
-
-def calculate_atr(data, period=14):
-    high_low = data['High'] - data['Low']
-    high_close = np.abs(data['High'] - data['Close'].shift())
-    low_close = np.abs(data['Low'] - data['Close'].shift())
-    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
-    atr = tr.rolling(window=period).mean()
-    return atr
-
-def calculate_macd(data):
-    """Calculate MACD (12,26,9)"""
-    ema12 = data["Close"].ewm(span=12, adjust=False).mean()
-    ema26 = data["Close"].ewm(span=26, adjust=False).mean()
-    data["MACD_Line"] = ema12 - ema26
-    data["MACD_Signal"] = data["MACD_Line"].ewm(span=9, adjust=False).mean()
-    data["MACD_Hist"] = data["MACD_Line"] - data["MACD_Signal"]
-    return data
-
-def get_next_earnings_date(ticker_obj):
-    """Improved next earnings date fetcher"""
-    today = datetime.datetime.now().date()
-    
-    try:
-        calendar = ticker_obj.calendar
-        if calendar is not None and not calendar.empty:
-            if isinstance(calendar, pd.DataFrame):
-                if 'Earnings Date' in calendar.index:
-                    dates = calendar.loc['Earnings Date']
-                    for d in dates:
-                        if pd.notna(d):
-                            if isinstance(d, (datetime.datetime.datetime, pd.Timestamp)):
-                                d_date = d.date() if hasattr(d, 'date') else d
-                            else:
-                                try:
-                                    d_date = pd.to_datetime(d).date()
-                                except:
-                                    continue
-                            if d_date > today:
-                                return d_date.strftime('%Y-%m-%d')
-                for col in calendar.columns:
-                    for val in calendar[col]:
-                        if pd.notna(val):
-                            try:
-                                dt = pd.to_datetime(val)
-                                if dt.date() > today:
-                                    return dt.strftime('%Y-%m-%d')
-                            except:
-                                continue
-            elif isinstance(calendar, dict):
-                for key, value in calendar.items():
-                    if 'earnings' in str(key).lower() or 'date' in str(key).lower():
-                        try:
-                            dt = pd.to_datetime(value)
-                            if dt.date() > today:
-                                return dt.strftime('%Y-%m-%d')
-                        except:
-                            continue
-    except Exception:
-        pass
-
-    try:
-        earnings_df = ticker_obj.get_earnings_dates(limit=10)
-        if earnings_df is not None and not earnings_df.empty:
-            for idx in earnings_df.index:
-                if isinstance(idx, (datetime.datetime.datetime, pd.Timestamp)) and idx.date() > today:
-                    return idx.strftime('%Y-%m-%d')
-    except:
-        pass
-
-    try:
-        info = ticker_obj.info
-        earnings_keys = ['earningsDate', 'nextEarningsDate', 'earningsTimestamp']
-        for key in earnings_keys:
-            if key in info and info[key]:
-                val = info[key]
-                if isinstance(val, list) and val:
-                    val = val[0]
-                try:
-                    if isinstance(val, (int, float)):
-                        dt = datetime.datetime.datetime.fromtimestamp(val)
-                    else:
-                        dt = pd.to_datetime(val)
-                    if dt.date() > today:
-                        return dt.strftime('%Y-%m-%d')
-                except:
-                    continue
-    except:
-        pass
-
-    return "N/A"
 
 def main():
     while True:
