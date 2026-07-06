@@ -4,6 +4,7 @@ import sys
 import numpy as np
 import datetime
 
+from fomc_warning import get_fomc_warning, print_fomc_warning
 from fred_treasury_spread import get_treasury_yield_spread
 from fib_retracement_levels import get_fibonacci_levels
 from short_interest import get_short_interest
@@ -128,6 +129,8 @@ def main():
 
             print("\nFetching Macro Context (Treasury Yields)...")
             get_treasury_yield_spread()
+                        
+            print_fomc_warning()            
 
             short_interest_details = get_short_interest(ticker_symbol)
 
@@ -573,6 +576,10 @@ def main():
 
             print("==================================================================================================================")
             print(" ⚠️  Always use proper position sizing. These are algorithmic suggestions based on current signals.")
+            print("==================================================================================================================")
+
+            print("==================================================================================================================")
+            print("START SMALL. MAKE SURE TO FOLLOW 25-50-25 BUYING PATTERN")
             print("==================================================================================================================")
 
         except Exception as e:
