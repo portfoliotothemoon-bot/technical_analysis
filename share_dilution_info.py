@@ -2,6 +2,7 @@ import yfinance as yf
 import pandas as pd
 from typing import Optional
 
+
 def get_yoy_dilution(ticker_symbol: str, use_diluted: bool = False) -> Optional[pd.DataFrame]:
     """
     Calculate Year-over-Year stock dilution for a given ticker.
